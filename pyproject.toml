@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "chess-control"
+version = "0.1.0"
+description = ""
+authors = ["Janghyub Seo <jhyub06@gmail.com>"]
+readme = "README.md"
+packages = [{include = "chess_control"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pyserial = "^3.5"
+chess = "^1.9.4"
+asyncio = "^3.4.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
