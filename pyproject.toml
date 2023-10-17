@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Janghyub Seo <jhyub06@gmail.com>"]
 readme = "README.md"
-packages = [{include = "chess_control"}]
+packages = [{include = "chess-control"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"

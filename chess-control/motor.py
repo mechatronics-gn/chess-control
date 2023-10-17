@@ -14,19 +14,24 @@ class Motor:
         self.x = 0
         self.y = 0
 
-        self.serial.write(bytearray([3]))
+        self.serial.write(bytes(bytearray([3])))
+
+    def query_reset(self):
+        while not self.check_state():
+            pass
+        self.serial.write(bytes(bytearray([3])))
 
     def query_stepper(self, x: int, y: int):
         while not self.check_state():
             pass
-        self.serial.write(bytearray([1, x, y]))
+        self.serial.write(bytes(bytearray([1, x // 256, x % 256, y // 256, y % 256])))
         self.x = x
         self.y = y
 
     def query_servo(self, is_servo_up: bool):
         while not self.check_state():
             pass
-        self.serial.write(bytearray([2, is_servo_up]))
+        self.serial.write(bytes(bytearray([2, is_servo_up])))
         self.is_servo_up = is_servo_up
 
     def calculate_square_pos(self, square: str) -> (int, int):
@@ -58,7 +63,7 @@ class Motor:
 
     def check_state(self):
         if self.serial.in_waiting > 0:
-            if self.serial.read() == 1:
+            if self.serial.read()[0] == 1:
                 self.state = True
                 return True
         self.state = False

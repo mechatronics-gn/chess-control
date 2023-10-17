@@ -28,7 +28,7 @@ def read_reed(reeds: list[Serial]) -> list[list[bool]]:
             pos = position_map[i][j + 7]
             if pos[0] < 0:
                 continue
-            ret[pos[0]][pos[1]] = x[0] >> (5 - i) % 2
+            ret[pos[0]][pos[1]] = x[1] >> (5 - i) % 2
 
     return ret
 
