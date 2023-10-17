@@ -1,100 +1,130 @@
 import chess
 import chess.engine
 import serial
-from reed import read_reed, comp_reed
 from motor import Motor
+from controller import Controller
+from time import sleep
 
-reed_ports = [
-    "/dev/ttyACM0",  # a1 코너
-    "/dev/ttyACM1",  # h1 코너
-    "/dev/ttyACM2",  # a8 코너
-    "/dev/ttyACM3",  # h8 코너
-    "/dev/ttyACM4",  # 중앙
-]
-timer_port = "/dev/ttyACM5"
-motor_port = "/dev/ttyACM6"
+motor_port = "/dev/ttyACM0"
+controller_port = "/dev/ttyACM1"
 engine_path = "/usr/bin/stockfish"
 
-reed_serials = [serial.Serial(x, 9600) for x in reed_ports]
-timer_serial = serial.Serial(timer_port, 9600)
 motor_serial = serial.Serial(motor_port, 9600)
+controller_serial = serial.Serial(controller_port, 9600)
 
-reed_before = read_reed(reed_serials)
 time = 600000
 board = chess.Board()
 engine = chess.engine.SimpleEngine.popen_uci(engine_path)
 engine.configure({"Skill Level": 5})
 
 motor = Motor(motor_serial)
+ctrl = Controller(controller_serial)
 
-timeout = False
-black_giveup = False
-while not board.is_game_over():
-    """
-        white moves
-    """
-    timer_serial.write((str(time) + "\n").encode('ascii'))
-    flag = True
-    while flag:
-        time = int(timer_serial.read_until())
-        if time <= 0:  # white lose / timeout
-            timeout = True
+while True:
+    board = chess.Board()
+    ctrl.reset_game(time)
+    black_giveup = False
+    white_timeout = False
+    while not board.is_game_over():
+        """
+        read white move
+        """
+        flag = True
+        while flag:
+            inc = ctrl.read()
+            if not inc[0]:
+                if inc[1] == "reset":
+                    break
+                elif inc[1] == "timeout":
+                    white_timeout = True
+                    break
+            else:
+                uci = f"{inc[0]}{inc[1]}"
+                """
+                Support special cases
+                """
+                if inc[0] == 'e1':
+                    if inc[1] == 'h1':  # short side castling
+                        if chess.Move.from_uci("e1g1") in board.legal_moves:
+                            uci = "e1g1"
+                    elif inc[1] == 'a1':
+                        if chess.Move.from_uci("e1c1") in board.legal_moves:
+                            uci = "e1c1"
+
+                if chess.Move.from_uci(uci+"q") in board.legal_moves:
+                    promo_flag = True
+                    while promo_flag:
+                        print("Promote to: [q/b/n/r]")
+                        x = input()
+                        if x in ['q', 'b', 'n', 'r']:
+                            uci = uci+x
+                            promo_flag = False
+
+                move = chess.Move.from_uci(uci)
+
+                if move in board.legal_moves:
+                    ctrl.write_coord_ok()
+                    ctrl.write_algebraic_expression(board.san(move))
+                    if board.is_capture(move):
+                        print(f"{board.san(move)} is capturing")
+                    board.push(move)
+                    motor.move_piece(uci[0:2], uci[2:4])
+                    flag = False
+                else:
+                    ctrl.write_coord_illegal()
+
+        if board.is_game_over():
             break
 
-        reed = read_reed(reed_serials)
-        diff = comp_reed(reed_before, reed)
-
-        if diff is not None:  # Move is possible to be valid
-            if chess.Move.from_uci(diff) in board.legal_moves:
-                board.push_uci(diff)
-                print(board)
-                flag = False
-            elif chess.Move.from_uci(diff + "q") in board.legal_moves:  # promotion
-                promo_flag = True
-                while promo_flag:
-                    print("Promotion to: [q/b/n/r]")
-                    x = input()
-                    if x in ['q', 'b', 'n', 'r']:
-                        board.push_uci(diff + x)
-                        print(board)
-                        flag = False
-                        promo_flag = False
-
-        if flag:
-            timer_serial.write((str(time) + "\n").encode('ascii'))
-
-    if board.is_game_over():
-        break
-
-    """
+        """
         black moves
-    """
+        """
+        ctrl.write_cpu_turn()
 
-    black_result = engine.play(board, chess.engine.Limit(time=0.1))
-    if black_result.move is not None:
-        board.push(black_result.move)
-        if board.is_castling(black_result.move):
-            if board.is_kingside_castling(black_result.move):  # e8g8, h8f8
-                motor.move_piece("e8", "g8")
-                motor.move_piece("h8", "f8")
-            elif board.is_queenside_castling(black_result.move):  # e8c8, a8d8
-                motor.move_piece("e8", "c8")
-                motor.move_piece("a8", "d8")
+        black_result = engine.play(board, chess.engine.Limit(time=0.1))
+        if black_result.move is not None:
+            move = black_result.move
+            ctrl.write_algebraic_expression(board.san(move))
+            if board.is_castling(move):
+                if board.is_kingside_castling(move):
+                    motor.move_piece("e8", "g8")
+                    motor.move_piece("h8", "f8")
+                elif board.is_queenside_castling(move):
+                    motor.move_piece("e8", "c8")
+                    motor.move_piece("a8", "d8")
+            elif move.promotion is not None:
+                print(f"{move.to_square} is promoting to {move.promotion}")
+                motor.move_piece(chess.square_name(move.from_square), chess.square_name(move.to_square))
+            else:
+                motor.move_piece(chess.square_name(move.from_square), chess.square_name(move.to_square))
+            if board.is_capture(move):
+                print(f"{board.san(move)} is capturing")
+            board.push(move)
         else:
-            motor.move_piece(chess.square_name(black_result.move.from_square),
-                             chess.square_name(black_result.move.to_square))
-        print(board)
-    else:
-        black_giveup = True
-        break
+            black_giveup = True
+            break
 
-print("Game over")
-timer_serial.write(b"0\n")
-if timeout:
-    print("Black wins (timeout)")
-elif black_giveup:
-    print("White wins (resign)")
-else:
-    outcome = board.outcome()
-    print(f"{outcome.winner} wins")
-engine.quit()
+        if board.is_game_over():
+            break
+
+        """
+        white moves
+        """
+        ctrl.write_your_turn()
+
+    if black_giveup:
+        ctrl.write_your_win()
+        print("White wins (resign)")
+    elif white_timeout:
+        ctrl.write_cpu_win()
+        print("Black wins (timeout")
+    else:
+        outcome = board.outcome()
+        print(f"{outcome.winner} wins")
+        if outcome.winner == chess.WHITE:
+            ctrl.write_your_win()
+        else:
+            ctrl.write_cpu_win()
+
+    sleep(5)
+

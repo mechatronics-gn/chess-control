@@ -14,12 +14,12 @@ class Motor:
         self.x = 0
         self.y = 0
 
-        self.serial.write(bytes(bytearray([3])))
+        self.serial.write(b'\x03')
 
     def query_reset(self):
         while not self.check_state():
             pass
-        self.serial.write(bytes(bytearray([3])))
+        self.serial.write(b'\x03')
 
     def query_stepper(self, x: int, y: int):
         while not self.check_state():
