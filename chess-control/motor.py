@@ -45,22 +45,18 @@ class Motor:
 
     def goto_square(self, square: str):
         (x, y) = self.calculate_square_pos(square)
-        print(f"Going to square {square} at {x}, {y}")
         self.query_stepper(x, y)
         while not self.check_state():
             pass
-        print(f"Exiting goto square {square}")
 
     def goto_line(self, line: str):
         line = line[0]
-        print(f"Going to line {line}")
         if ord('a') <= ord(line) <= ord('i'):
             self.query_stepper(self.x_margin + self.x_size * (8 - ord(line) + ord('a')), self.y)
         if ord('1') <= ord(line) <= ord('9'):
             self.query_stepper(self.x, self.y_margin + self.y_size * (ord(line) - ord('1')))
         while not self.check_state():
             pass
-        print(f"Exiting goto line {line}")
 
     def move_piece(self, from_square: str, to_square: str):
         self.query_servo(False)

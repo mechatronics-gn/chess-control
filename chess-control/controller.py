@@ -1,5 +1,4 @@
 import serial
-import time
 
 
 class Controller:
@@ -7,7 +6,7 @@ class Controller:
         self.serial = ctrl_serial
 
     def reset_game(self, time: int):
-        print("Writing reset with " + str(bytes(bytearray([0, (time >> 24) % 256, (time >> 16) % 256, (time >> 8) % 256, time % 256]))))
+        print("Resetting game with " + str(bytes(bytearray([0, (time >> 24) % 256, (time >> 16) % 256, (time >> 8) % 256, time % 256]))))
         self.serial.write(bytes(bytearray([0, (time >> 24) % 256, (time >> 16) % 256, (time >> 8) % 256, time % 256])))
 
     def write_coord_ok(self):
@@ -20,7 +19,6 @@ class Controller:
         exp = exp[:8]
         self.serial.write(bytes(bytearray([3, len(exp)])))
         self.serial.write(bytes(exp, 'ascii'))
-        print(f"Sent {exp} to ctrl")
 
     def write_your_turn(self):
         self.serial.write(b'\x04')
@@ -56,7 +54,8 @@ class Controller:
         elif int(ty[0]) == int(b'\xAD'[0]):
             return "", "timeout"
         elif int(ty[0]) == int(b'\xAE'[0]):
-            print("debug: " + str(self.serial.read_until(), 'ascii'), end="")
+            dbgstr = str(self.serial.read_until(), 'ascii')
+            # print("debug: " + dbgstr, end="")
             return "", "debug"
 
 
